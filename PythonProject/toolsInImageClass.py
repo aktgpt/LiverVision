@@ -62,7 +62,7 @@ class InstrumentsInImage:   #TODO: DetectToolInImage
         kmeansLabels = sklearn.cluster.KMeans(n_clusters=numTools).fit(orientMat).labels_
         imgToolContours = []
         centerLine = []
-        global toolParams, toolContours #TODO: Avoid defining global variable, change to class variable
+        toolParams = toolContours = [] #TODO: Avoid defining global variable, change to class variable
         for i in range(0, numTools):
             idx = np.where(kmeansLabels == i)
             if len(idx[0]) >= 2:
@@ -81,7 +81,7 @@ class InstrumentsInImage:   #TODO: DetectToolInImage
 
         return imgToolContours, centerLine
 
-    def getCenterandOrientation(self, moment): #TODO: define complete name of moment variables
+    def getCenterandOrientation(self, moment):
         cx = moment['m10'] / moment['m00']
         cy = moment['m01'] / moment['m00']
         mu11 = moment['m11'] / moment['m00'] - cx * cy
@@ -197,10 +197,10 @@ class InstrumentsInImage:   #TODO: DetectToolInImage
         return imgToolCurves
 
     def getToolsBoundingBox(self):
-        for i in range(len(self.leftImgTools)):
+        for i in range(len(self.ImgTools)):
             toolPoints = np.empty([0, 2])
-            for j in range(len(self.leftImgTools[i])):
-                toolPoints = np.vstack((toolPoints, self.leftImgTools[i][j]))
+            for j in range(len(self.ImgTools[i])):
+                toolPoints = np.vstack((toolPoints, self.ImgTools[i][j]))
                 rect = cv2.minAreaRect(np.reshape(toolPoints, [len(toolPoints), 1, 2]))
         pass
 
@@ -212,6 +212,7 @@ class InstrumentsInImage:   #TODO: DetectToolInImage
         return
 
     def getCurveRatio(self, toolCurves, toolLine):
+
         pass
 
 

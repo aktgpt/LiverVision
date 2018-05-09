@@ -89,34 +89,38 @@ class PointPairsClass(object):
         return toolCurves, meanToolCurves
 
     def getCorrespodingPoints(self, leftCurves, rightCurves):
-        matchedLeftPoints = []
-        matchedRightPoints = []
-        leftCurves = np.hstack((leftCurves, np.ones([len(leftCurves), 1])))
-        rightCurves = np.hstack((rightCurves, np.ones([len(rightCurves), 1])))
-        distMat = np.empty([len(leftCurves),len(rightCurves)])
-        distMatCV = np.empty([len(leftCurves),len(rightCurves)])
-    #minDistMat = np.empty([len(leftCurves), 2])
-        for i in range(0, len(leftCurves)):
-            lineRight = np.matmul(self.fundamentalMatrix, leftCurves[i])
-            # lineRightCV = cv2.computeCorrespondEpilines(np.reshape(leftCurves[i], (1, 3)), 1, self.fundamentalMatrix)
-            for j in range(0, len(rightCurves)):
-                distMat[i, j] = np.abs(np.matmul(rightCurves[j], lineRight))
-                # distMatCV[i, j] = np.abs(np.matmul(rightCurves[j], lineRightCV[0,0,:]))
-        corresIdx =[]
-        for i in range(len(leftCurves)):
-            potentialRightIdx = np.argmin(distMat[i, :])
-            potentialLeftIdx = np.argmin(distMat[:, potentialRightIdx])
-            if potentialLeftIdx == i and distMat[i, potentialRightIdx] < 0.01:
-                corresIdx.append([potentialLeftIdx, potentialRightIdx])
-                matchedLeftPoints.append(leftCurves[potentialLeftIdx])
-                matchedRightPoints.append(rightCurves[potentialRightIdx])
-        if matchedLeftPoints and matchedRightPoints:
-            matchedLeftPoints = np.delete(matchedLeftPoints, 2, axis=1)
-            matchedRightPoints = np.delete(matchedRightPoints, 2, axis=1)
-            matchedLeftPointsCV, matchedRightPointsCV = cv2.correctMatches(self.fundamentalMatrix, np.reshape(matchedLeftPoints, (1, len(matchedLeftPoints), 2))
-                                                                       , np.reshape(matchedRightPoints, (1, len(matchedLeftPoints), 2)))
-            matchedLeftPointsCV = np.reshape(matchedLeftPointsCV, (len(matchedLeftPoints), 2))
-            matchedRightPointsCV = np.reshape(matchedRightPointsCV, (len(matchedLeftPoints), 2))
+        if leftCurves.size and rightCurves.size:
+            leftCurves = cv2.convertPointsToHomogeneous(leftCurves)
+            rightCurves = cv2.convertPointsToHomogeneous(rightCurves)
+            # distMat = np.empty([len(leftCurves),len(rightCurves)])
+            distMatCV = np.empty([len(leftCurves),len(rightCurves)])
+            # minDistMat = np.empty([len(leftCurves), 2])
+            for i in range(0, len(leftCurves)):
+                # lineRight = np.matmul(self.fundamentalMatrix, leftCurves[i])
+                lineRightCV = cv2.computeCorrespondEpilines(leftCurves[i], 1, self.fundamentalMatrix)
+                for j in range(0, len(rightCurves)):
+                    # distMat[i, j] = np.abs(np.matmul(rightCurves[j], lineRight))
+                    distMatCV[i, j] = np.abs(np.matmul(rightCurves[j], lineRightCV[0,0,:]))
+            leftIdx = []
+            rightIdx = []
+            for i in range(len(leftCurves)):
+                potentialRightIdx = np.argmin(distMatCV[i, :])
+                potentialLeftIdx = np.argmin(distMatCV[:, potentialRightIdx])
+                if potentialLeftIdx == i and distMatCV[i, potentialRightIdx] < 0.5:
+                    leftIdx.append(potentialLeftIdx)
+                    rightIdx.append(potentialRightIdx)
+            if leftIdx and rightIdx:
+                matchedLeftPoints = cv2.convertPointsFromHomogeneous(np.array([leftCurves[leftIdx[i]] for i in
+                                                                               range(0, len(leftIdx))])).reshape([1, len(leftIdx), 2])
+                matchedRightPoints = cv2.convertPointsFromHomogeneous(np.array([rightCurves[rightIdx[i]] for i in
+                                                                                range(0, len(rightIdx))])).reshape([1, len(leftIdx), 2])
+                matchedLeftPointsCV, matchedRightPointsCV = cv2.correctMatches(self.fundamentalMatrix, matchedLeftPoints
+                                                                           , matchedRightPoints)
+                matchedLeftPointsCV = matchedLeftPointsCV.reshape([len(leftIdx), 2])
+                matchedRightPointsCV = matchedRightPointsCV.reshape(len(leftIdx), 2)
+            else:
+                matchedLeftPointsCV = []
+                matchedRightPointsCV = []
         else:
             matchedLeftPointsCV = []
             matchedRightPointsCV = []
