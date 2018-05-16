@@ -5,16 +5,20 @@ import toolsInImageClass as toolsInImage
 import PointPairsClass as ptsPairs
 import poseEstimateClass as poseEstimate
 import StereoCameraCalibration as StereoCamCalib
-import visualizeTools3D as vis
+import VBStereoCalibration
+import IdentifyTools
 import csv
 
-calib = StereoCamCalib.StereoCalibration('C:/Users/gupta/OneDrive/Desktop/Ankit/Project/Endoscope Calibration/')
+calibParameters = VBStereoCalibration.StereoCalibration('C:/Users/gupta/OneDrive/Desktop/Ankit/Project/Endoscope Calibration/',
+                                                        False, True, False).StereoParameters
 
-fundamentalMatrix = calib.camera_model['F']
-leftProjectionMatrix = calib.stereo_model['P1']
-rightProjectionMatrix = calib.stereo_model['P2']
+# calib = StereoCamCalib.StereoCalibration('C:/Users/gupta/OneDrive/Desktop/Ankit/Project/Endoscope Calibration/')
 
-cap = cv2.VideoCapture('greenBarsTest.avi')
+fundamentalMatrix = calibParameters['FundamentalMatrix']
+# leftProjectionMatrix = calibParameters.stereo_model['P1']
+# rightProjectionMatrix = calibParameters.stereo_model['P2']
+
+cap = cv2.VideoCapture('multipleTools.mp4')
 frameCount = 0
 
 
@@ -34,6 +38,15 @@ while (cap.isOpened()):
     leftTools = toolsInImage.InstrumentsInImage(leftImage, 2)
     leftImageTools = leftTools.getImageTools()
 
+    x = IdentifyTools.IdentifyTools(leftImageTools, leftTools.toolCenterLine)
+
+    # y = x.findPointsOnToolCenterline(leftImageTools, leftTools.toolCenterLine)
+    for i in range(len(x.toolCenterLine)):
+        cv2.circle(leftImage, (x.toolCenterLine[i][0], x.toolCenterLine[i][1]), 3,
+                   (0, 255, 255), -1)
+    cv2.imshow('image', leftImage)
+
+
     rightTools = toolsInImage.InstrumentsInImage(rightImage, 2)
     rightImageTools = rightTools.getImageTools()
 
@@ -42,15 +55,21 @@ while (cap.isOpened()):
     matchedRightCurves = correspondingPoints.rightImgMatchedPoints
 
 
-    for i in range(0, len(matchedLeftCurves)):
-        for j in range(0, len(matchedLeftCurves[i])):
-            for k in range(0, len(matchedLeftCurves[i][j])):
-                cv2.circle(leftImage, (int(matchedLeftCurves[i][j][k, 0]), int(matchedLeftCurves[i][j][k, 1])), 3,
-                           (0, 0, 255), -1)
-    cv2.imshow('image', leftImage)
+    # for i in range(0, len(matchedLeftCurves)):
+    #     for j in range(0, len(matchedLeftCurves[i])):
+    #         for k in range(0, len(matchedLeftCurves[i][j])):
+    #             cv2.circle(leftImage, (int(matchedLeftCurves[i][j][k, 0]), int(matchedLeftCurves[i][j][k, 1])), 3,
+    #                        (0, 0, 255), -1)
 
-    poseEst = poseEstimate.poseEstimateClass(matchedLeftCurves, matchedRightCurves, leftProjectionMatrix, rightProjectionMatrix)
+    poseEst = poseEstimate.poseEstimateClass(matchedLeftCurves, matchedRightCurves, calibParameters)
     poseEst.getImgToolPoses()
+    # for i in range(0, len(poseEst.leftImageToolLines)):
+    #     for j in range(0, len(poseEst.leftImageToolLines[i])-1):
+    #         # if
+    #         cv2.line(leftImage, (int(poseEst.leftImageToolLines[i][0, 0]), int(poseEst.leftImageToolLines[i][0, 1])),
+    #                  (int(poseEst.leftImageToolLines[i][j, 0]), int(poseEst.leftImageToolLines[i][j, 1])), (0, 255, 0), 5)
+    # cv2.imshow('image', leftImage)
+
     # imgToolsObj = poseEst(leftImgMatchedPoints, rightImgMatchedPoints)
     imgToolPoses = poseEst.imgToolPose
     scenePtCloud = poseEst.imgPointCloud

@@ -14,4 +14,5 @@ while(run):
 
     tracking.track()
     transforms = tracking.getTransformations()
+    print(transforms)
 

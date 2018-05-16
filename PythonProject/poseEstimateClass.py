@@ -1,20 +1,24 @@
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-import sklearn
+
 import math
 from scipy.optimize import minimize
-import sklearn.cluster
+
 
 
 class poseEstimateClass:
 
-        def __init__(self, leftMatchedPoints, rightMatchedPoints, leftProjectionMatrix, rightProjectionMatrix):
+        def __init__(self, leftMatchedPoints, rightMatchedPoints, calibrationParameters):
             self.leftMatchedPoints = leftMatchedPoints
             self.rightMatchedPoints = rightMatchedPoints
-            self.leftProjectionMatrix = leftProjectionMatrix
-            self.rightProjectionMatrix = rightProjectionMatrix
+            self.leftProjectionMatrix = calibrationParameters['LeftProjectionMatrix']
+            self.rightProjectionMatrix = calibrationParameters['RightProjectionMatrix']
+            self.leftCameraMatrix = calibrationParameters['LeftCameraMatrix']
+            self.rightCameraMatrix = calibrationParameters['RightCameraMatrix']
+            self.leftDistCoeffs = calibrationParameters['LeftDistortionCoefficients']
+            self.rightDistCoeffs = calibrationParameters['RightDistortionCoefficients']
+            self.rightCameraRotation = calibrationParameters['RightCameraRotation']
+            self.rightCameraTranslation = calibrationParameters['RightCameraTranslation']
             self.imgToolPts = []
             self.toolPts = []
             self.toolLine = np.zeros([6, 1])
@@ -23,6 +27,8 @@ class poseEstimateClass:
             self.toolPose = np.zeros([4, 4])
             self.imgPointCloud = []
             self.imgToolPose = []
+            self.leftImageToolLines = []
+            self.rightImageToolLines = []
 
         def get3DPts(self, leftPoints, rightPoints):
             # fig = plt.figure()
@@ -123,10 +129,7 @@ class poseEstimateClass:
                           #                                         self.initialDistLineFromOrigin-2])})
             return constraint
 
-        def removeOutliers(self, pts, line):
-            distMat = np.abs(self.signedDistPtsFromLine(pts, line))
-            inlierPts = np.transpose(np.array([pts[:, i] for i in range(0, len(distMat)) if distMat[i] < 8]))
-            return inlierPts
+
 
         def optimizeLine(self, line):
             initLine = line
@@ -135,18 +138,10 @@ class poseEstimateClass:
             finalLine = res.x
             return finalLine
 
-        def ptsProjectionOnLine(self, pts, line):
-            dirVect = line[3:6]
-            linePt = line[0:3]
-            projectedPtOnLine = []
-            for i in range(0, len(pts)):
-                projectedPtOnLine.append(linePt + ((np.dot(linePt-pts[i], dirVect)/np.linalg.norm(dirVect)) * dirVect))
-            projectedPtOnLine = np.transpose(np.asarray(projectedPtOnLine))
-            return projectedPtOnLine
-
         def getPosefromLine(self, line):
-            phi, theta = self.getEulerAnglesFromDirection(line[3:6])
-            rotMat = self.rotationMatrixFromEulerAngles(phi, theta)
+            # phi, theta = self.getEulerAnglesFromDirection(line[3:6])
+            # rotMat = self.rotationMatrixFromEulerAngles(phi, theta)
+            rotMatRod = self.getRotationMatrixFromVector(line[3:6])
             dirVectX = line[3:6] / np.linalg.norm(line[3:6])
             dirVectY = np.array([0, 1, 0])
             dirVectZ = np.cross(dirVectX, dirVectY)
@@ -157,7 +152,7 @@ class poseEstimateClass:
             #     transformMatrix[i, 1] = dirVectYUpdated[i] / np.linalg.norm(dirVectYUpdated)
             #     transformMatrix[i, 2] = dirVectZ[i] / np.linalg.norm(dirVectZ)
                 transformMatrix[i, 3] = line[i]
-            transformMatrix[0:3, 0:3] = rotMat
+            transformMatrix[0:3, 0:3] = rotMatRod
             transformMatrix[3, 0:4] = [0, 0, 0, 1]
             # check = np.dot(transformMatrix[0, 0:3], transformMatrix[1, 0:3])
             # print("dot product of x and y: " + str(check))
@@ -189,12 +184,22 @@ class poseEstimateClass:
             self.imgPointCloud = self.get3DPts(self.leftMatchedPoints, self.rightMatchedPoints)
             for i in range(0, len(self.imgToolPts)):
                 self.toolPts = self.imgToolPts[i]
+                distance = self.distanceBetweenPoints(self.toolPts)
                 self.toolLine = self.linePtCloud(self.imgPointCloud[i])
                 self.setToolParameters(self.imgToolPts[i])
                 self.updateToolLine()
+                leftImageTools, rightImageTools = self.projecttoolsToImage()
+                self.leftImageToolLines.append(leftImageTools)
+                self.rightImageToolLines.append(rightImageTools)
                 self.setToolPose()
                 self.imgToolPose.append(self.toolPose)
             return
+
+        def getRotationMatrixFromVector(self, directionVector):
+            rotationMatrix, jacobianMatrix = cv2.Rodrigues(directionVector.astype(np.float))
+            return rotationMatrix
+
+
 
         def getEulerAnglesFromDirection(self, directionVector):
             directionVector = directionVector / np.linalg.norm(directionVector)
@@ -204,6 +209,61 @@ class poseEstimateClass:
 
         def rotationMatrixFromEulerAngles(self, phi, theta):
             rotationMatrix = np.array([[math.sin(phi), math.cos(phi)* math.cos(theta), math.cos(phi)*math.sin(theta)],
-                                        [0 , math.sin(theta), -math.cos(theta)],
+                                        [0, math.sin(theta), -math.cos(theta)],
                                        [-math.cos(phi), math.sin(phi)*math.cos(theta), math.sin(phi)*math.sin(theta)]])
             return rotationMatrix
+
+        def ptsProjectionOnLine(self, pts, line):
+            dirVect = line[3:6]
+            linePt = line[0:3]
+            projectedPtOnLine = []
+            if np.shape(np.shape(pts))[0] == 1:
+                return projectedPtOnLine
+            else:
+                for i in range(0, np.shape(pts)[1]):
+                    projectedPtOnLine.append(linePt + ((np.dot(linePt-pts[:, i], dirVect)/np.linalg.norm(dirVect)) * dirVect))
+                projectedPtOnLine = np.transpose(np.asarray(projectedPtOnLine))
+                return projectedPtOnLine
+
+        def projectLineToImage(self, linePoints3D):
+            leftImagePoints = []
+            rightImagePoints = []
+            if linePoints3D == []:
+                return leftImagePoints, rightImagePoints
+            else:
+                leftImagePoints = cv2.projectPoints(np.transpose(linePoints3D), np.eye(3), np.array([0, 0, 0], dtype=float),
+                                                     self.leftCameraMatrix, self.leftDistCoeffs)
+                rightImagePoints = cv2.projectPoints(np.transpose(linePoints3D), cv2.Rodrigues(self.rightCameraRotation)[0],
+                                                     self.rightCameraTranslation, self.rightCameraMatrix, self.rightDistCoeffs)
+                leftImagePoints = leftImagePoints[0][:, 0, :]
+                rightImagePoints = rightImagePoints[0][:, 0, :]
+                invalidLeftImagePoints = []
+                invalidRightImagePoints = []
+                for i in range(0, len(leftImagePoints)):
+                    if leftImagePoints[i, 0] > 960 or leftImagePoints[i, 1] > 540:
+                        invalidLeftImagePoints.append(i)
+                    if rightImagePoints[i, 0] > 960 or rightImagePoints[i, 1] > 540:
+                        invalidRightImagePoints.append(i)
+                leftImagePoints = np.delete(leftImagePoints, invalidLeftImagePoints, axis=0)
+                rightImagePoints = np.delete(rightImagePoints, invalidRightImagePoints, axis=0)
+            return leftImagePoints, rightImagePoints
+
+        def projecttoolsToImage(self):
+            toolCenterLinePoints = self.ptsProjectionOnLine(self.toolPts, self.toolLine)
+            dist = self.distanceBetweenPoints(toolCenterLinePoints)
+            toolLeftImage, toolRightImage = self.projectLineToImage(toolCenterLinePoints)
+            return toolLeftImage, toolRightImage
+
+        def distanceBetweenPoints(self, pts):
+            if pts != []:
+                distMat = np.zeros([np.shape(pts)[1]-1, 1])
+                for i in range(1, np.shape(pts)[1]):
+                    distMat[i-1] = np.sqrt((pts[0, 0] - pts[0, i])**2 + (pts[1, 0] - pts[1, i])**2 + (pts[2, 0] - pts[2, i])**2)
+            else:
+                distMat = []
+            return distMat
+
+        def removeOutliers(self, pts, line):
+            distMat = np.abs(self.signedDistPtsFromLine(pts, line))
+            inlierPts = np.transpose(np.array([pts[:, i] for i in range(0, len(distMat)) if distMat[i] < 8]))
+            return inlierPts
