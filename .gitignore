@@ -137,3 +137,5 @@ db.sqlite3
 
 #saved models
 *.h5
+.pb
+.meta
