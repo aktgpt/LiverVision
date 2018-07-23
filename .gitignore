@@ -134,3 +134,6 @@ db.sqlite3
 *.mp4
 *.mp3
 *.mp
+
+#saved models
+*.h5

@@ -41,9 +41,10 @@ while (cap.isOpened()):
     x = IdentifyTools.IdentifyTools(leftImageTools, leftTools.toolCenterLine)
 
     # y = x.findPointsOnToolCenterline(leftImageTools, leftTools.toolCenterLine)
-    for i in range(len(x.toolCenterLine)):
-        cv2.circle(leftImage, (x.toolCenterLine[i][0], x.toolCenterLine[i][1]), 3,
-                   (0, 255, 255), -1)
+    for i in range(len(x.imageToolLines)):
+        for j in range(len(x.imageToolLines[i])):
+            cv2.circle(leftImage, (x.imageToolLines[i][j][0], x.imageToolLines[i][j][1]), 3,
+                        (0, 255, 255), -1)
     cv2.imshow('image', leftImage)
 
 
@@ -63,12 +64,12 @@ while (cap.isOpened()):
 
     poseEst = poseEstimate.poseEstimateClass(matchedLeftCurves, matchedRightCurves, calibParameters)
     poseEst.getImgToolPoses()
-    # for i in range(0, len(poseEst.leftImageToolLines)):
-    #     for j in range(0, len(poseEst.leftImageToolLines[i])-1):
-    #         # if
-    #         cv2.line(leftImage, (int(poseEst.leftImageToolLines[i][0, 0]), int(poseEst.leftImageToolLines[i][0, 1])),
-    #                  (int(poseEst.leftImageToolLines[i][j, 0]), int(poseEst.leftImageToolLines[i][j, 1])), (0, 255, 0), 5)
-    # cv2.imshow('image', leftImage)
+    for i in range(0, len(poseEst.leftImageToolLines)):
+        for j in range(0, len(poseEst.leftImageToolLines[i])-1):
+            # if
+            cv2.line(leftImage, (int(poseEst.leftImageToolLines[i][0, 0]), int(poseEst.leftImageToolLines[i][0, 1])),
+                     (int(poseEst.leftImageToolLines[i][j, 0]), int(poseEst.leftImageToolLines[i][j, 1])), (0, 255, 0), 5)
+    cv2.imshow('image', leftImage)
 
     # imgToolsObj = poseEst(leftImgMatchedPoints, rightImgMatchedPoints)
     imgToolPoses = poseEst.imgToolPose

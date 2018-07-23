@@ -7,6 +7,7 @@ class IdentifyTools:
     def __init__(self, imageToolCurves, imageToolCenterLine):
         self.imageToolCurves = imageToolCurves
         self.imageToolCenterLine = imageToolCenterLine
+        self.imageToolLines = []
         self.labelCurves()
         self.tool1Ratio = np.array([1, 2, 1.5, 1, 1.5])
         self.tool2Ratio = np.array([1.5, 1, 1, 2, 1.5])
@@ -32,6 +33,17 @@ class IdentifyTools:
         pointsCenterLine = [pointsCenterLine[i] for i in sortedIdx]
         return toolCurves, pointsCenterLine
 
+    def getCrossRatio(self, pointsCenterLine):
+        if len(pointsCenterLine)==4:
+            num = np.dot((pointsCenterLine[0] - pointsCenterLine[2]), (pointsCenterLine[1] - pointsCenterLine[3]))
+            den = np.dot((pointsCenterLine[1] - pointsCenterLine[2]), (pointsCenterLine[0] - pointsCenterLine[3]))
+            crossRatio = num/den
+        if len(pointsCenterLine)==6:
+            num = np.dot((pointsCenterLine[0] - pointsCenterLine[2]), (pointsCenterLine[1] - pointsCenterLine[3]))
+            den = np.dot((pointsCenterLine[1] - pointsCenterLine[2]), (pointsCenterLine[0] - pointsCenterLine[3]))
+            crossRatio = num/den
+        return crossRatio
+
 
     def getCurvesDistance(self, pointsToolCenterLine):
         distMat = []
@@ -49,18 +61,20 @@ class IdentifyTools:
                 ratioMat.append(round(distanceBetweenCurves[i] / distanceBetweenCurves[mindistIdx] * 2) / 2)
         return ratioMat
 
-    def findToolIdentity(self, curvesRatio):
+    def getToolIdentity(self, curvesRatio):
 
         pass
 
 
     def labelCurves(self):
         for i in range(len(self.imageToolCurves)):
-            self.toolCenterLine = self.findPointsOnToolCenterline(self.imageToolCurves[i], self.imageToolCenterLine[i])
-            self.imageToolCurves[i], toolCenterLine = self.sortToolCurves(self.imageToolCurves[i], self.toolCenterLine)
+            toolCenterLine = self.findPointsOnToolCenterline(self.imageToolCurves[i], self.imageToolCenterLine[i])
+            self.imageToolCurves[i], toolCenterLine = self.sortToolCurves(self.imageToolCurves[i], toolCenterLine)
+            crossRatio = self.getCrossRatio(toolCenterLine)
+            print(crossRatio)
+            self.imageToolLines.append(toolCenterLine)
             distanceBWCurves = self.getCurvesDistance(toolCenterLine)
             distanceratio = self.getCurveRatio(distanceBWCurves)
-            print(distanceratio)
         return distanceratio
 
 
